@@ -26,7 +26,7 @@ async function main() {
       console.log(result);
     }
   } catch (err) {
-    console.error('Error:', err);
+    // console.error('Error:', err);
     process.exit(2);
   }
 }
