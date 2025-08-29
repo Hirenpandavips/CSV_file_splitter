@@ -29,6 +29,7 @@ exports.splitCompanyContacts = async () => {
 		: path.resolve(__dirname, '../../uploads/test-input.csv')
 
 	if (!fs.existsSync(inputCsvPath)) {
+    console.log(`Input CSV not found at ${inputCsvPath}`);
 		return sendAPIerror(statusCode.NOTFOUND, `Input CSV not found at ${inputCsvPath}`)
 	}
 

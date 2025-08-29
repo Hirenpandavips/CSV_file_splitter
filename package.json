@@ -22,7 +22,6 @@
     "http": "^0.0.1-security",
     "morgan": "^1.10.1",
     "pg": "^8.16.3",
-    "playwright": "^1.55.0",
     "sequelize": "^6.37.7"
   },
   "devDependencies": {
