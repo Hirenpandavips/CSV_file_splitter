@@ -26,7 +26,7 @@ exports.splitCompanyContacts = async () => {
 	// Resolve input CSV path (env override supported)
 	const inputCsvPath = process.env.CSV_INPUT_PATH
 		? path.resolve(process.env.CSV_INPUT_PATH)
-		: path.resolve(__dirname, '../../uploads/main_file.csv')
+		: path.resolve(__dirname, '../../uploads/test-input.csv')
 
 	if (!fs.existsSync(inputCsvPath)) {
 		return sendAPIerror(statusCode.NOTFOUND, `Input CSV not found at ${inputCsvPath}`)
@@ -75,7 +75,8 @@ exports.splitCompanyContacts = async () => {
 		recordsInCurrent = 0
 		const fileName = `${baseName}_part_${String(fileIndex).padStart(5, '0')}.csv`
 		const filePath = path.join(outputDir, fileName)
-		outStream = fs.createWriteStream(filePath, { encoding: 'utf8' })
+    outStream = fs.createWriteStream(filePath, { encoding: 'utf8' })
+    outStream.setMaxListeners(50) // Prevent MaxListenersExceededWarning for drain events
 		// Write header immediately
 		const headerLine = rowToCsv(headerRow)
 		const ok = outStream.write(headerLine)
@@ -102,7 +103,9 @@ exports.splitCompanyContacts = async () => {
 
 	// Build a promise around the stream pipeline for async/await ergonomics
 	const result = await new Promise((resolve, reject) => {
-		let fileCount = 0
+	let fileCount = 0
+	let totalRows = 0 // all data rows (excluding compliance notice and header)
+	let recordsWithoutEmail = 0 // rows with no valid email
 
 		// Handle backpressure by pausing parser when write buffer is full
 		const writeRecord = (row) => {
@@ -129,30 +132,97 @@ exports.splitCompanyContacts = async () => {
 		parser.on('error', (err) => reject(err))
 		readStream.on('error', (err) => reject(err))
 
-				parser.on('data', (record) => {
-					if (!headerRow) {
-						headerRow = record
-						// Find the fixed 'Emails' column index
-						const normalized = headerRow.map((h) => String(h || '').trim().toLowerCase())
-            emailIndex = normalized.findIndex((h) => h === 'work email')
-						if (emailIndex === -1) {
-							reject(new Error("'Emails' column not found in header"))
-						}
-						return
-					}
-					// Filter: only include rows where 'Emails' cell has a non-empty value
-					const emailVal = record[emailIndex]
-					const hasEmail = emailVal !== undefined && emailVal !== null && String(emailVal).trim().length > 0
-					if (!hasEmail) return // skip this row
-					writeRecord(record)
-				})
+		let skipComplianceNotice = true;
+		parser.on('data', (record) => {
+			// Skip the first line if it is a Compliance Notice
+			if (skipComplianceNotice) {
+				const firstLine = (record[0] || '').toString().trim().toLowerCase();
+				if (firstLine.startsWith('compliance notice:')) {
+					skipComplianceNotice = false;
+					return;
+				}
+				skipComplianceNotice = false;
+			}
+			if (!headerRow) {
+				headerRow = record;
+				// Find the fixed 'Emails' and 'Telephone' column indices
+				const normalized = headerRow.map((h) => String(h || '').trim().toLowerCase());
+				emailIndex = normalized.findIndex((h) => h === 'emails');
+				if (emailIndex === -1) {
+					reject(new Error("'Emails' column not found in header"));
+				}
+				// Telephone column
+				let telephoneIndex = normalized.findIndex((h) => h === 'telephones');
+				let extraTelIndex = normalized.findIndex((h) => h === 'extra telephones');
+				// If 'extra telephones' column doesn't exist, add it
+				if (extraTelIndex === -1) {
+					headerRow.push('extra telephones');
+					extraTelIndex = headerRow.length - 1;
+				}
+				// Save for use in closure
+				parser.telephoneIndex = telephoneIndex;
+				parser.extraTelIndex = extraTelIndex;
+				return;
+			}
+			totalRows++;
+			// For each email in the Emails cell, create a new row with that email and same other fields
+			const emailVal = record[emailIndex];
+			if (emailVal === undefined || emailVal === null) {
+				recordsWithoutEmail++;
+				return;
+			}
+			const emails = String(emailVal)
+				.split(';')
+				.map(e => e.trim())
+				.filter(e => e.length > 0);
+			if (emails.length === 0) {
+				recordsWithoutEmail++;
+				return;
+			}
+
+			// Telephone logic
+			const telephoneIndex = parser.telephoneIndex;
+			const extraTelIndex = parser.extraTelIndex;
+			let telVal = telephoneIndex !== -1 ? record[telephoneIndex] : '';
+			let telNumbers = [];
+			if (telVal !== undefined && telVal !== null) {
+				telNumbers = String(telVal)
+					.split(';')
+					.map(t => t.replace(/^ph:/i, '').trim())
+					.filter(t => t.length > 0);
+			}
+			let firstTel = telNumbers.length > 0 ? telNumbers[0] : '';
+			let extraTels = telNumbers.length > 1 ? telNumbers.slice(1).join(';') : '';
+
+			for (const singleEmail of emails) {
+				// Clone the row and set the Emails column to the single email
+				const newRow = [...record];
+				newRow[emailIndex] = singleEmail;
+				// Set Telephone and extra telephones
+				if (telephoneIndex !== -1) newRow[telephoneIndex] = firstTel;
+				// Ensure extra telephones field exists
+				if (extraTelIndex >= newRow.length) {
+					// pad with empty fields if needed
+					while (newRow.length < extraTelIndex) newRow.push('');
+					newRow.push(extraTels);
+				} else {
+					newRow[extraTelIndex] = extraTels;
+				}
+				writeRecord(newRow);
+			}
+		});
 
 		parser.on('end', () => {
 			// Gracefully close the last stream if still open
 			if (outStream) {
 				outStream.end()
 			}
-			resolve({ fileCount, totalRecords })
+			resolve({
+				fileCount,
+				totalRecords,
+				totalRows,
+				recordsWithoutEmail
+			})
 		})
 
 		// Kick off the pipeline
@@ -161,12 +231,41 @@ exports.splitCompanyContacts = async () => {
 		return sendAPIerror(statusCode.SERVERERROR, err.message || 'Failed to split CSV')
 	})
 
+	// Write summary.txt in outputDir
+	// Pretty table formatter
+	const pad = (str, len) => String(str).padEnd(len, ' ');
+	const summaryRows = [
+		['Input', inputCsvPath],
+		['Output Directory', outputDir],
+		['Files Created', result.fileCount],
+		['Total Records', result.totalRows],
+		['Records Without Email', result.recordsWithoutEmail],
+		['Records Processed', result.totalRecords],
+		['Chunk Size', chunkSize],
+	];
+	const keyWidth = Math.max(...summaryRows.map(([k]) => k.length)) + 2;
+	const valWidth = Math.max(...summaryRows.map(([,v]) => String(v).length)) + 2;
+	const border = `|${'='.repeat(keyWidth + valWidth + 1)}|`;
+	const title = pad('CSV Split Summary', keyWidth + valWidth + 1);
+	let summaryText = `${border}\n|${title}|\n${border}\n`;
+	for (const [k, v] of summaryRows) {
+		summaryText += `| ${pad(k + ':', keyWidth)}${pad(v, valWidth)}|\n`;
+	}
+	summaryText += border + '\n';
+	try {
+		fs.writeFileSync(path.join(outputDir, 'summary.txt'), summaryText, 'utf8');
+	} catch (e) {
+		// If writing summary fails, do not block the main response
+		console.error('Failed to write summary.txt:', e);
+	}
 	return {
 		message: responseMessage('success', 'split', 'CSV'),
 		data: {
 			input: inputCsvPath,
 			outputDir,
 			filesCreated: result.fileCount,
+			totalRecords: result.totalRows,
+			recordsWithoutEmail: result.recordsWithoutEmail,
 			recordsProcessed: result.totalRecords,
 			chunkSize,
 		},
