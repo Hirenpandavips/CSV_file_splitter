@@ -29,7 +29,7 @@ exports.splitCompanyContacts = async () => {
 		: path.resolve(__dirname, '../../uploads/test-input.csv')
 
 	if (!fs.existsSync(inputCsvPath)) {
-    console.log(`Input CSV not found at ${inputCsvPath}`);
+		console.log(`Input CSV not found at ${inputCsvPath}`);
 		return sendAPIerror(statusCode.NOTFOUND, `Input CSV not found at ${inputCsvPath}`)
 	}
 
@@ -71,6 +71,11 @@ exports.splitCompanyContacts = async () => {
 		let emailIndex = -1
 
 	const openNextFile = () => {
+    if (fileIndex === 0) {
+      console.log('Splitting started... 🚀');
+    }
+    console.log(`Batch ${fileIndex + 1} created successfully! 🎉`);
+
 		if (!headerRow) throw new Error('Header row not initialized')
 		fileIndex += 1
 		recordsInCurrent = 0
@@ -107,6 +112,7 @@ exports.splitCompanyContacts = async () => {
 	let fileCount = 0
 	let totalRows = 0 // all data rows (excluding compliance notice and header)
 	let recordsWithoutEmail = 0 // rows with no valid email
+	console.log('Crunching your CSV... Grab a coffee ☕');
 
 		// Handle backpressure by pausing parser when write buffer is full
 		const writeRecord = (row) => {
@@ -214,6 +220,7 @@ exports.splitCompanyContacts = async () => {
 		});
 
 		parser.on('end', () => {
+		console.log('Splitting complete! Check your output folder. ✅');
 			// Gracefully close the last stream if still open
 			if (outStream) {
 				outStream.end()
