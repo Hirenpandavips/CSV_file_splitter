@@ -122,17 +122,28 @@ exports.splitCompanyContacts = async () => {
 			}
 			const line = rowToCsv(row)
 			const canContinue = outStream.write(line)
-			if (!canContinue) {
-				// Pause parser until the write stream drains
-				parser.pause()
-				outStream.once('drain', () => parser.resume())
-			}
 			recordsInCurrent += 1
 			totalRecords += 1
+			// If we've hit the chunk size, rotate safely respecting backpressure
 			if (recordsInCurrent >= chunkSize) {
-				// Rotate file
-				outStream.end()
-				outStream = null
+				parser.pause()
+				const closeAndResume = () => {
+					outStream.end(() => {
+						outStream = null
+						parser.resume()
+					})
+				}
+				if (!canContinue) {
+					outStream.once('drain', closeAndResume)
+				} else {
+					closeAndResume()
+				}
+				return
+			}
+			// Normal backpressure handling when not rotating
+			if (!canContinue) {
+				parser.pause()
+				outStream.once('drain', () => parser.resume())
 			}
 		}
 
@@ -403,16 +414,29 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 			}
 			const line = rowToCsv(row)
 			const canContinue = outStream.write(line)
-			if (!canContinue) {
-				parser.pause()
-				outStream.once('drain', () => parser.resume())
-			}
 			recordsInCurrent += 1
 			totalRecords += 1
 			processedRows += 1
+			// Rotate safely at boundaries while respecting backpressure (only if chunkSize is set)
 			if (chunkSize && recordsInCurrent >= chunkSize) {
-				outStream.end()
-				outStream = null
+				parser.pause()
+				const closeAndResume = () => {
+					outStream.end(() => {
+						outStream = null
+						parser.resume()
+					})
+				}
+				if (!canContinue) {
+					outStream.once('drain', closeAndResume)
+				} else {
+					closeAndResume()
+				}
+				return
+			}
+			// Normal backpressure handling when not rotating
+			if (!canContinue) {
+				parser.pause()
+				outStream.once('drain', () => parser.resume())
 			}
 		}
 
@@ -421,7 +445,7 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 
 		let skipComplianceNotice = true;
 		parser.on('data', (record) => {
-			if (finished) return; // ignore further data after done
+			// if (finished) return; // ignore further data after done
 			// Skip the first line if it is a Compliance Notice
 			if (skipComplianceNotice) {
 				const firstLine = (record[0] || '').toString().trim().toLowerCase();
