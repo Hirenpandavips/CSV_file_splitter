@@ -67,7 +67,8 @@ exports.splitCompanyContacts = async () => {
 	let fileIndex = 0
 	let recordsInCurrent = 0
 	let totalRecords = 0
-		let emailIndex = -1
+	let emailIndex = -1
+	let rootDomainIndex = -1
 
 	const openNextFile = () => {
     if (fileIndex === 0) {
@@ -151,12 +152,13 @@ exports.splitCompanyContacts = async () => {
 			}
 			if (!headerRow) {
 				headerRow = record;
-				// Find the fixed 'Emails' and 'Telephone' column indices
+				// Find the fixed 'Emails', 'Telephone', and 'root domain' column indices
 				const normalized = headerRow.map((h) => String(h || '').trim().toLowerCase());
 				emailIndex = normalized.findIndex((h) => h === 'emails');
 				if (emailIndex === -1) {
 					reject(new Error("'Emails' column not found in header"));
 				}
+				let rootDomainIndex = normalized.findIndex((h) => h === 'root domain');
 				// Telephone column
 				let telephoneIndex = normalized.findIndex((h) => h === 'telephones');
 				let extraTelIndex = normalized.findIndex((h) => h === 'extra telephones');
@@ -168,7 +170,16 @@ exports.splitCompanyContacts = async () => {
 				// Save for use in closure
 				parser.telephoneIndex = telephoneIndex;
 				parser.extraTelIndex = extraTelIndex;
+				parser.rootDomainIndex = rootDomainIndex;
 				return;
+			}
+			// Skip if root domain contains .gov or .edu
+			rootDomainIndex = parser.rootDomainIndex;
+			if (rootDomainIndex !== -1) {
+				const rootDomainVal = record[rootDomainIndex];
+				if (rootDomainVal && /\.gov|\.edu/i.test(String(rootDomainVal))) {
+					return;
+				}
 			}
 			totalRows++;
 			// For each email in the Emails cell, create a new row with that email and same other fields
@@ -340,6 +351,7 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 	let recordsInCurrent = 0
 	let totalRecords = 0
 	let emailIndex = -1
+  let rootDomainIndex = -1
 
 	const openNextFile = () => {
 		if (fileIndex === 0) {
@@ -421,13 +433,14 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 			}
 			if (!headerRow) {
 				headerRow = record;
-				// Find the fixed 'Emails' and 'Telephone' column indices
+				// Find the fixed 'Emails', 'Telephone', and 'root domain' column indices
 				const normalized = headerRow.map((h) => String(h || '').trim().toLowerCase());
 				emailIndex = normalized.findIndex((h) => h === 'emails');
 				if (emailIndex === -1) {
 					reject(new Error("'Emails' column not found in header"));
 				}
 				// Telephone column
+				let rootDomainIndex = normalized.findIndex((h) => h === 'root domain');
 				let telephoneIndex = normalized.findIndex((h) => h === 'telephones');
 				let extraTelIndex = normalized.findIndex((h) => h === 'extra telephones');
 				if (extraTelIndex === -1) {
@@ -436,6 +449,7 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 				}
 				parser.telephoneIndex = telephoneIndex;
 				parser.extraTelIndex = extraTelIndex;
+				parser.rootDomainIndex = rootDomainIndex;
 				return;
 			}
 			dataRowIndex++;
@@ -456,6 +470,16 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 				});
 				return;
 			}
+
+			// Skip if root domain contains .gov or .edu
+			rootDomainIndex = parser.rootDomainIndex;
+			if (rootDomainIndex !== -1) {
+				const rootDomainVal = record[rootDomainIndex];
+				if (rootDomainVal && /\.gov|\.edu/i.test(String(rootDomainVal))) {
+					return;
+				}
+			}
+			
 			totalRows++;
 			// For each email in the Emails cell, create a new row with that email and same other fields
 			const emailVal = record[emailIndex];
@@ -529,7 +553,7 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 		['Records Without Email', result.recordsWithoutEmail],
 		['Records Processed', result.totalRecords],
 		['Range', `${start} to ${end} `],
-		['Batch Size', chunkSize || (end - start + 1)],
+		['Batch Size', chunkSize || (end - start + 1)]
 	];
 	const keyWidth = Math.max(...summaryRows.map(([k]) => k.length)) + 2;
 	const valWidth = Math.max(...summaryRows.map(([,v]) => String(v).length)) + 2;
