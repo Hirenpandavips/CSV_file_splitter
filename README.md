@@ -19,14 +19,24 @@ A scalable Node.js tool to split large CSV files into smaller chunks, with advan
    npm install
    ```
 
+
 2. **Run the splitter on a CSV file:**
-   - Add file at this path src/uploads/ 
+   - Place your CSV file in `src/uploads/`.
+
+   **Normal Split (by batch size):**
    ```powershell
-   node cli-split.js <filename>
+   node csv-split.js <filename> [--batch=SIZE]
    ```
+   - `--batch=SIZE` (optional): Number of records per output file. If not provided, uses `CSV_SPLIT_SIZE` from environment or defaults to 100000.
+
+   **Range Split (by row range and batch size):**
+   ```powershell
+   node csv-split.js <filename> --range=START:END [--batch=SIZE]
+   ```
+   - `--range=START:END` (required for range mode): Only rows from START to END (inclusive) will be processed (1-based, header not counted).
+   - `--batch=SIZE` (optional): Number of records per output file within the range. If not provided, all selected rows go into a single file.
+
    - The output files and `summary.txt` will be created in a timestamped folder under `uploads/splits/` by default.
-   - You can override chunk size by setting environment variables:
-     - `CSV_SPLIT_SIZE` (records per file)
 
 ---
 
@@ -79,9 +89,20 @@ A scalable Node.js tool to split large CSV files into smaller chunks, with advan
 
 ## Example
 
-**CLI:**
+
+**CLI Examples:**
 ```powershell
+# Normal split (default batch size or from ENV)
 node csv-split.js input.csv
+
+# Normal split with custom batch size
+node csv-split.js input.csv --batch=50000
+
+# Range split (rows 1 to 1500, batch size 50)
+node csv-split.js input.csv --range=1:1500 --batch=50
+
+# Range split (rows 1001 to 2000, all in one file)
+node csv-split.js input.csv --range=1001:2000
 ```
 
 **API:**
