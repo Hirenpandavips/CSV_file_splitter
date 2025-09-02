@@ -120,6 +120,11 @@ exports.splitCompanyContacts = async () => {
 				openNextFile()
 				fileCount += 1
 			}
+			// Check if stream is destroyed or ended
+			if (outStream.destroyed || outStream.writableEnded) {
+				openNextFile()
+				fileCount += 1
+			}
 			const line = rowToCsv(row)
 			const canContinue = outStream.write(line)
 			recordsInCurrent += 1
@@ -409,6 +414,11 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 		// Handle backpressure by pausing parser when write buffer is full
 		const writeRecord = (row) => {
 			if (!outStream) {
+				openNextFile()
+				fileCount += 1
+			}
+			// Check if stream is destroyed or ended
+			if (outStream.destroyed || outStream.writableEnded) {
 				openNextFile()
 				fileCount += 1
 			}
