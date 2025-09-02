@@ -115,13 +115,8 @@ exports.splitCompanyContacts = async () => {
 	console.log('Crunching your CSV... Grab a coffee ☕');
 
 		// Handle backpressure by pausing parser when write buffer is full
-		const writeRecord = (row) => {
+		const writeRecord = (row, isLastEmailInRow = true) => {
 			if (!outStream) {
-				openNextFile()
-				fileCount += 1
-			}
-			// Check if stream is destroyed or ended
-			if (outStream.destroyed || outStream.writableEnded) {
 				openNextFile()
 				fileCount += 1
 			}
@@ -129,8 +124,8 @@ exports.splitCompanyContacts = async () => {
 			const canContinue = outStream.write(line)
 			recordsInCurrent += 1
 			totalRecords += 1
-			// If we've hit the chunk size, rotate safely respecting backpressure
-			if (recordsInCurrent >= chunkSize) {
+			// Only rotate after processing all emails for the current CSV row
+			if (recordsInCurrent >= chunkSize && isLastEmailInRow) {
 				parser.pause()
 				const closeAndResume = () => {
 					outStream.end(() => {
@@ -227,7 +222,9 @@ exports.splitCompanyContacts = async () => {
 			let firstTel = telNumbers.length > 0 ? telNumbers[0] : '';
 			let extraTels = telNumbers.length > 1 ? telNumbers.slice(1).join(';') : '';
 
-			for (const singleEmail of emails) {
+			for (let i = 0; i < emails.length; i++) {
+				const singleEmail = emails[i];
+				const isLastEmail = i === emails.length - 1;
 				// Clone the row and set the Emails column to the single email
 				const newRow = [...record];
 				newRow[emailIndex] = singleEmail;
@@ -241,7 +238,7 @@ exports.splitCompanyContacts = async () => {
 				} else {
 					newRow[extraTelIndex] = extraTels;
 				}
-				writeRecord(newRow);
+				writeRecord(newRow, isLastEmail);
 			}
 		});
 
@@ -412,13 +409,8 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 		console.log('Crunching your CSV... Grab a coffee ☕');
 
 		// Handle backpressure by pausing parser when write buffer is full
-		const writeRecord = (row) => {
+		const writeRecord = (row, isLastEmailInRow = true) => {
 			if (!outStream) {
-				openNextFile()
-				fileCount += 1
-			}
-			// Check if stream is destroyed or ended
-			if (outStream.destroyed || outStream.writableEnded) {
 				openNextFile()
 				fileCount += 1
 			}
@@ -427,8 +419,8 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 			recordsInCurrent += 1
 			totalRecords += 1
 			processedRows += 1
-			// Rotate safely at boundaries while respecting backpressure (only if chunkSize is set)
-			if (chunkSize && recordsInCurrent >= chunkSize) {
+			// Only rotate after processing all emails for the current CSV row (only if chunkSize is set)
+			if (chunkSize && recordsInCurrent >= chunkSize && isLastEmailInRow) {
 				parser.pause()
 				const closeAndResume = () => {
 					outStream.end(() => {
@@ -544,7 +536,9 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 			let firstTel = telNumbers.length > 0 ? telNumbers[0] : '';
 			let extraTels = telNumbers.length > 1 ? telNumbers.slice(1).join(';') : '';
 
-			for (const singleEmail of emails) {
+			for (let i = 0; i < emails.length; i++) {
+				const singleEmail = emails[i];
+				const isLastEmail = i === emails.length - 1;
 				const newRow = [...record];
 				newRow[emailIndex] = singleEmail;
 				if (telephoneIndex !== -1) newRow[telephoneIndex] = firstTel;
@@ -554,7 +548,7 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 				} else {
 					newRow[extraTelIndex] = extraTels;
 				}
-				writeRecord(newRow);
+				writeRecord(newRow, isLastEmail);
 			}
 		});
 
