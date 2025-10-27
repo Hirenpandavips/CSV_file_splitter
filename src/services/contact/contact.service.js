@@ -70,6 +70,7 @@ exports.splitCompanyContacts = async () => {
 	let totalRecords = 0
 	let emailIndex = -1
 	let rootDomainIndex = -1
+	let isRotating = false // Flag to prevent writes during rotation
 
 	const openNextFile = () => {
     if (fileIndex === 0) {
@@ -120,10 +121,22 @@ exports.splitCompanyContacts = async () => {
 
 		// Handle backpressure by pausing parser when write buffer is full
 		const writeRecord = (row, isLastEmailInRow = true) => {
+			// Skip writes if we're in the middle of rotating files
+			if (isRotating) {
+				return
+			}
+			
 			if (!outStream) {
 				openNextFile()
 				fileCount += 1
 			}
+			
+			// Check if stream is writable before writing
+			if (!outStream || outStream.destroyed || outStream.closed) {
+				console.warn('Attempted to write to a closed stream, skipping record')
+				return
+			}
+			
 			const line = rowToCsv(row)
 			const canContinue = outStream.write(line)
 			recordsInCurrent += 1
@@ -131,9 +144,11 @@ exports.splitCompanyContacts = async () => {
 			// Only rotate after processing all emails for the current CSV row
 			if (recordsInCurrent >= chunkSize && isLastEmailInRow) {
 				parser.pause()
+				isRotating = true
 				const closeAndResume = () => {
 					outStream.end(() => {
 						outStream = null
+						isRotating = false
 						parser.resume()
 					})
 				}
@@ -281,7 +296,7 @@ exports.splitCompanyContacts = async () => {
 		parser.on('end', () => {
 		console.log('Splitting complete! Check your output folder. ✅');
 			// Gracefully close the last stream if still open
-			if (outStream) {
+			if (outStream && !outStream.destroyed && !outStream.closed) {
 				outStream.end()
 			}
 			resolve({
@@ -412,6 +427,7 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 	let totalRecords = 0
 	let emailIndex = -1
   let rootDomainIndex = -1
+	let isRotating = false // Flag to prevent writes during rotation
 
 	const openNextFile = () => {
 		if (fileIndex === 0) {
@@ -460,10 +476,22 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 
 		// Handle backpressure by pausing parser when write buffer is full
 		const writeRecord = (row, isLastEmailInRow = true) => {
+			// Skip writes if we're in the middle of rotating files
+			if (isRotating) {
+				return
+			}
+			
 			if (!outStream) {
 				openNextFile()
 				fileCount += 1
 			}
+			
+			// Check if stream is writable before writing
+			if (!outStream || outStream.destroyed || outStream.closed) {
+				console.warn('Attempted to write to a closed stream, skipping record')
+				return
+			}
+			
 			const line = rowToCsv(row)
 			const canContinue = outStream.write(line)
 			recordsInCurrent += 1
@@ -472,9 +500,11 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 			// Only rotate after processing all emails for the current CSV row (only if chunkSize is set)
 			if (chunkSize && recordsInCurrent >= chunkSize && isLastEmailInRow) {
 				parser.pause()
+				isRotating = true
 				const closeAndResume = () => {
 					outStream.end(() => {
 						outStream = null
+						isRotating = false
 						parser.resume()
 					})
 				}
@@ -549,11 +579,12 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 			if (dataRowIndex > end) {
 				// We have finished the requested range, stop everything
 				finished = true;
-				if (outStream) {
-					outStream.end();
+				parser.pause() // Pause the parser first
+				if (outStream && !outStream.destroyed && !outStream.closed) {
+					outStream.end()
 				}
 				readStream.destroy(); // stop reading file
-				parser.end && parser.end(); // for compatibility, end parser if possible
+				parser.destroy && parser.destroy(); // destroy parser to stop processing
 				resolve({
 					fileCount,
 					totalRecords: processedRows,
@@ -637,7 +668,7 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 		parser.on('end', () => {
 			if (finished) return; // already handled
 			console.log('Splitting complete! Check your output folder. ✅');
-			if (outStream) {
+			if (outStream && !outStream.destroyed && !outStream.closed) {
 				outStream.end()
 			}
 			resolve({
