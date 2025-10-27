@@ -152,15 +152,26 @@ exports.splitCompanyContacts = async () => {
 		readStream.on('error', (err) => reject(err))
 
 		let skipComplianceNotice = true;
+		let skipFiltersApplied = false;
 		parser.on('data', (record) => {
 			// Skip the first line if it is a Compliance Notice
 			if (skipComplianceNotice) {
 				const firstLine = (record[0] || '').toString().trim().toLowerCase();
 				if (firstLine.startsWith('compliance notice:')) {
 					skipComplianceNotice = false;
+					skipFiltersApplied = true;
 					return;
 				}
 				skipComplianceNotice = false;
+			}
+			// Skip the second line if it is Filters Applied
+			if (skipFiltersApplied) {
+				const secondLine = (record[0] || '').toString().trim().toLowerCase();
+				if (secondLine.startsWith('filters applied')) {
+					skipFiltersApplied = false;
+					return;
+				}
+				skipFiltersApplied = false;
 			}
 			if (!headerRow) {
 				headerRow = record;
@@ -464,6 +475,7 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 		readStream.on('error', (err) => reject(err))
 
 		let skipComplianceNotice = true;
+		let skipFiltersApplied = false;
 		parser.on('data', (record) => {
 			// if (finished) return; // ignore further data after done
 			// Skip the first line if it is a Compliance Notice
@@ -471,9 +483,19 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 				const firstLine = (record[0] || '').toString().trim().toLowerCase();
 				if (firstLine.startsWith('compliance notice:')) {
 					skipComplianceNotice = false;
+					skipFiltersApplied = true;
 					return;
 				}
 				skipComplianceNotice = false;
+			}
+			// Skip the second line if it is Filters Applied
+			if (skipFiltersApplied) {
+				const secondLine = (record[0] || '').toString().trim().toLowerCase();
+				if (secondLine.startsWith('filters applied')) {
+					skipFiltersApplied = false;
+					return;
+				}
+				skipFiltersApplied = false;
 			}
 			if (!headerRow) {
 				headerRow = record;
