@@ -48,7 +48,7 @@ exports.splitCompanyContacts = async () => {
 	const outputDir = process.env.CSV_OUTPUT_DIR
 		? path.resolve(process.env.CSV_OUTPUT_DIR)
 		// : path.resolve(__dirname, `../../uploads/splits/${baseName}_${timestamp}`)	
-		: path.resolve(inputDir, `${baseName}_${timestamp}`)
+		: path.resolve(inputDir, `${baseName}`)
 	const ensureDir = (dir) => {
 		if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 	}
