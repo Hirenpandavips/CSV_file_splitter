@@ -53,15 +53,38 @@ function extractZip(zipPath) {
     const extractPath = path.dirname(zipPath);
     
     // Get existing CSV files before extraction
-    const existingCsvFiles = new Set(findCsvFiles(extractPath).map(f => path.basename(f)));
+    const existingCsvFilesBefore = findCsvFiles(extractPath);
+    const existingCsvFiles = new Set(existingCsvFilesBefore.map(f => path.basename(f)));
+    
+    console.log(`  CSV files before extraction: ${existingCsvFilesBefore.length}`);
+    if (existingCsvFilesBefore.length > 0) {
+      console.log(`  Existing files: ${existingCsvFilesBefore.map(f => path.basename(f)).join(', ')}`);
+    }
     
     const zip = new AdmZip(zipPath);
+    
+    // Get list of files in the zip
+    const zipEntries = zip.getEntries();
+    const csvEntriesInZip = zipEntries.filter(entry => 
+      !entry.isDirectory && path.extname(entry.entryName).toLowerCase() === '.csv'
+    );
+    console.log(`  CSV files in zip: ${csvEntriesInZip.length}`);
+    if (csvEntriesInZip.length > 0) {
+      console.log(`  Zip contains: ${csvEntriesInZip.map(e => path.basename(e.entryName)).join(', ')}`);
+    }
+    
     zip.extractAllTo(extractPath, true);
     console.log(`✅ Extracted to: ${extractPath}\n`);
     
     // Get CSV files after extraction and filter only new ones
     const allCsvFiles = findCsvFiles(extractPath);
     const newCsvFiles = allCsvFiles.filter(f => !existingCsvFiles.has(path.basename(f)));
+    
+    console.log(`  CSV files after extraction: ${allCsvFiles.length}`);
+    console.log(`  New CSV files to process: ${newCsvFiles.length}`);
+    if (newCsvFiles.length > 0) {
+      console.log(`  New files: ${newCsvFiles.map(f => path.basename(f)).join(', ')}\n`);
+    }
     
     return { extractPath, newCsvFiles };
   } catch (error) {
