@@ -31,16 +31,24 @@ function findZipFiles(dir) {
   return zipFiles;
 }
 
-// Extract zip file to same directory
+// Extract zip file to same directory and return newly extracted CSV files
 function extractZip(zipPath) {
   console.log(`📦 Extracting: ${zipPath}`);
   const zip = new AdmZip(zipPath);
   const extractPath = path.dirname(zipPath);
 
+  // Get existing CSV files before extraction
+  const existingCsvFiles = new Set(findCsvFiles(extractPath).map(f => path.basename(f)));
+
   try {
     zip.extractAllTo(extractPath, true);
     console.log(`✅ Extracted to: ${extractPath}\n`);
-    return extractPath;
+    
+    // Get CSV files after extraction and filter only new ones
+    const allCsvFiles = findCsvFiles(extractPath);
+    const newCsvFiles = allCsvFiles.filter(f => !existingCsvFiles.has(path.basename(f)));
+    
+    return { extractPath, newCsvFiles };
   } catch (error) {
     console.error(`❌ Failed to extract ${zipPath}: ${error.message}\n`);
     return null;
@@ -126,14 +134,14 @@ async function main() {
     console.log(`Zip: ${path.basename(zipPath)}\n`);
 
     // Extract zip
-    const extractPath = extractZip(zipPath);
-    if (!extractPath) {
+    const extractResult = extractZip(zipPath);
+    if (!extractResult) {
       failCount++;
       continue;
     }
 
-    // Find CSV files in extracted folder
-    const csvFiles = findCsvFiles(extractPath);
+    const { extractPath, newCsvFiles } = extractResult;
+    const csvFiles = newCsvFiles; // Only process newly extracted CSV files
     totalCsvs += csvFiles.length;
 
     if (csvFiles.length === 0) {
