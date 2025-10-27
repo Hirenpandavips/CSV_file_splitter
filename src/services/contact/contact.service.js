@@ -151,20 +151,16 @@ exports.splitCompanyContacts = async () => {
 		parser.on('error', (err) => reject(err))
 		readStream.on('error', (err) => reject(err))
 
-		let skipComplianceNotice = true;
 		let skipFiltersApplied = false;
 		parser.on('data', (record) => {
-			// Skip the first line if it is a Compliance Notice
-			if (skipComplianceNotice) {
-				const firstLine = (record[0] || '').toString().trim().toLowerCase();
-				if (firstLine.startsWith('compliance notice:')) {
-					skipComplianceNotice = false;
-					skipFiltersApplied = true;
-					return;
-				}
-				skipComplianceNotice = false;
+			if(record === null || record === undefined) return;
+			// Skip any row that starts with Compliance Notice
+			const firstLine = (record[0] || '').toString().trim().toLowerCase();
+			if (firstLine.startsWith('compliance notice:')) {
+				skipFiltersApplied = true;
+				return;
 			}
-			// Skip the second line if it is Filters Applied
+			// Skip the line if it is Filters Applied
 			if (skipFiltersApplied) {
 				const secondLine = (record[0] || '').toString().trim().toLowerCase();
 				if (secondLine.startsWith('filters applied')) {
@@ -474,21 +470,16 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 		parser.on('error', (err) => reject(err))
 		readStream.on('error', (err) => reject(err))
 
-		let skipComplianceNotice = true;
 		let skipFiltersApplied = false;
 		parser.on('data', (record) => {
 			// if (finished) return; // ignore further data after done
-			// Skip the first line if it is a Compliance Notice
-			if (skipComplianceNotice) {
-				const firstLine = (record[0] || '').toString().trim().toLowerCase();
-				if (firstLine.startsWith('compliance notice:')) {
-					skipComplianceNotice = false;
-					skipFiltersApplied = true;
-					return;
-				}
-				skipComplianceNotice = false;
+			// Skip any row that starts with Compliance Notice
+			const firstLine = (record[0] || '').toString().trim().toLowerCase();
+			if (firstLine.startsWith('compliance notice:')) {
+				skipFiltersApplied = true;
+				return;
 			}
-			// Skip the second line if it is Filters Applied
+			// Skip the line if it is Filters Applied
 			if (skipFiltersApplied) {
 				const secondLine = (record[0] || '').toString().trim().toLowerCase();
 				if (secondLine.startsWith('filters applied')) {
