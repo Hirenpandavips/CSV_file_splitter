@@ -101,11 +101,13 @@ exports.splitCompanyContacts = async () => {
 
 	const readStream = fs.createReadStream(inputCsvPath)
 	const parser = parse({
-		// We’ll manually handle headers: first row captured and copied into each chunk
+		// We'll manually handle headers: first row captured and copied into each chunk
 		columns: false,
 		bom: true,
 		skip_empty_lines: true,
 		relax_column_count: true,
+		relax_quotes: true, // Allow malformed quotes
+		skip_records_with_error: true, // Skip records with errors instead of throwing
 	})
 
 	// Build a promise around the stream pipeline for async/await ergonomics
@@ -113,6 +115,7 @@ exports.splitCompanyContacts = async () => {
 	let fileCount = 0
 	let totalRows = 0 // all data rows (excluding compliance notice and header)
 	let recordsWithoutEmail = 0 // rows with no valid email
+	let skippedRecords = 0 // rows skipped due to parsing errors
 	console.log('Crunching your CSV... Grab a coffee ☕');
 
 		// Handle backpressure by pausing parser when write buffer is full
@@ -148,7 +151,17 @@ exports.splitCompanyContacts = async () => {
 			}
 		}
 
-		parser.on('error', (err) => reject(err))
+		parser.on('error', (err) => {
+			console.error(`CSV parsing error: ${err.message}`)
+			skippedRecords++
+			// Don't reject, just log and continue
+		})
+		
+		parser.on('skip', (err) => {
+			console.warn(`Skipped invalid record at line ${err.lines || 'unknown'}: ${err.message}`)
+			skippedRecords++
+		})
+		
 		readStream.on('error', (err) => reject(err))
 
 		let skipFiltersApplied = false;
@@ -275,15 +288,22 @@ exports.splitCompanyContacts = async () => {
 				fileCount,
 				totalRecords,
 				totalRows,
-				recordsWithoutEmail
+				recordsWithoutEmail,
+				skippedRecords
 			})
 		})
 
 		// Kick off the pipeline
 		readStream.pipe(parser)
 	}).catch((err) => {
+		console.error('Fatal error in CSV processing:', err)
 		return sendAPIerror(statusCode.SERVERERROR, err.message || 'Failed to split CSV')
 	})
+	
+	// Check if result contains an error (from sendAPIerror)
+	if (result && result.status === statusCode.SERVERERROR) {
+		return result
+	}
 
 	// Write summary.txt in outputDir
 	// Pretty table formatter
@@ -295,6 +315,7 @@ exports.splitCompanyContacts = async () => {
 		['Total Records', result.totalRows],
 		['Records Without Email', result.recordsWithoutEmail],
 		['Records Processed', result.totalRecords],
+		['Skipped Records', result.skippedRecords || 0],
 		['Chunk Size', chunkSize],
 	];
 	const keyWidth = Math.max(...summaryRows.map(([k]) => k.length)) + 2;
@@ -321,6 +342,7 @@ exports.splitCompanyContacts = async () => {
 			totalRecords: result.totalRows,
 			recordsWithoutEmail: result.recordsWithoutEmail,
 			recordsProcessed: result.totalRecords,
+			skippedRecords: result.skippedRecords || 0,
 			chunkSize,
 		},
 	}
@@ -421,6 +443,8 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 		bom: true,
 		skip_empty_lines: true,
 		relax_column_count: true,
+		relax_quotes: true, // Allow malformed quotes
+		skip_records_with_error: true, // Skip records with errors instead of throwing
 	})
 
 	// Build a promise around the stream pipeline for async/await ergonomics
@@ -431,6 +455,7 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 		let dataRowIndex = 0 // 1-based, only data rows (not header/compliance)
 		let processedRows = 0 // rows actually written (after email split)
 		let finished = false;
+		let skippedRecords = 0 // rows skipped due to parsing errors
 		console.log('Crunching your CSV... Grab a coffee ☕');
 
 		// Handle backpressure by pausing parser when write buffer is full
@@ -467,7 +492,17 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 			}
 		}
 
-		parser.on('error', (err) => reject(err))
+		parser.on('error', (err) => {
+			console.error(`CSV parsing error: ${err.message}`)
+			skippedRecords++
+			// Don't reject, just log and continue
+		})
+		
+		parser.on('skip', (err) => {
+			console.warn(`Skipped invalid record at line ${err.lines || 'unknown'}: ${err.message}`)
+			skippedRecords++
+		})
+		
 		readStream.on('error', (err) => reject(err))
 
 		let skipFiltersApplied = false;
@@ -609,14 +644,21 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 				fileCount,
 				totalRecords: processedRows,
 				totalRows,
-				recordsWithoutEmail
+				recordsWithoutEmail,
+				skippedRecords
 			})
 		})
 
 		readStream.pipe(parser)
 	}).catch((err) => {
+		console.error('Fatal error in CSV processing:', err)
 		return sendAPIerror(statusCode.SERVERERROR, err.message || 'Failed to split CSV')
 	})
+	
+	// Check if result contains an error (from sendAPIerror)
+	if (result && result.status === statusCode.SERVERERROR) {
+		return result
+	}
 
 	// Write summary.txt in outputDir
 	const pad = (str, len) => String(str).padEnd(len, ' ');
@@ -627,6 +669,7 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 		['Total Records', result.totalRows],
 		['Records Without Email', result.recordsWithoutEmail],
 		['Records Processed', result.totalRecords],
+		['Skipped Records', result.skippedRecords || 0],
 		['Range', `${start} to ${end} `],
 		['Batch Size', chunkSize || (end - start + 1)]
 	];
@@ -653,6 +696,7 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 			totalRecords: result.totalRows,
 			recordsWithoutEmail: result.recordsWithoutEmail,
 			recordsProcessed: result.totalRecords,
+			skippedRecords: result.skippedRecords || 0,
 			range: `${start} to ${end}`,
 			batchSize: chunkSize || (end - start + 1),
 		},
