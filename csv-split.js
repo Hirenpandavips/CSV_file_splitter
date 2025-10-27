@@ -30,7 +30,8 @@ async function main() {
     console.error('Usage: node csv-split.js <input.csv> [--range=START:END] [--batch=SIZE]');
     process.exit(1);
   }
-  const inputPath = path.resolve(`./src/uploads/${inputArg}`);
+  // const inputPath = path.resolve(`./src/uploads/${inputArg}`);
+  const inputPath = path.resolve(inputArg);
   if (args.range) {
     // Range mode
     const match = args.range.match(/^(\d+):(\d+)$/);

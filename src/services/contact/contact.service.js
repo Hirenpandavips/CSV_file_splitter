@@ -44,10 +44,11 @@ exports.splitCompanyContacts = async () => {
 		.toISOString()
 		.replace(/[-:T]/g, '')
 		.replace(/\..+/, '') // yyyymmddhhMMss
+	const inputDir = path.dirname(inputCsvPath)
 	const outputDir = process.env.CSV_OUTPUT_DIR
 		? path.resolve(process.env.CSV_OUTPUT_DIR)
-		: path.resolve(__dirname, `../../uploads/splits/${baseName}_${timestamp}`)
-
+		// : path.resolve(__dirname, `../../uploads/splits/${baseName}_${timestamp}`)	
+		: path.resolve(inputDir, `${baseName}_${timestamp}`)
 	const ensureDir = (dir) => {
 		if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 	}
@@ -355,9 +356,11 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 		.toISOString()
 		.replace(/[-:T]/g, '')
 		.replace(/\..+/, '') // yyyymmddhhMMss
+	const inputDir = path.dirname(inputCsvPath)
 	const outputDir = process.env.CSV_OUTPUT_DIR
 		? path.resolve(process.env.CSV_OUTPUT_DIR)
-		: path.resolve(__dirname, `../../uploads/splits/${baseName}_range_${timestamp}`)
+		// : path.resolve(__dirname, `../../uploads/splits/${baseName}_range_${timestamp}`)
+		: path.resolve(inputDir, `${baseName}_range_${timestamp}`)
 
 	const ensureDir = (dir) => {
 		if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
