@@ -153,7 +153,7 @@ exports.splitCompanyContacts = async () => {
 
 		let skipFiltersApplied = false;
 		parser.on('data', (record) => {
-			if(record === null || record === undefined) return;
+			if(record === null || record === undefined || !record[0]) return;
 			// Skip any row that starts with Compliance Notice
 			const firstLine = (record[0] || '').toString().trim().toLowerCase();
 			if (firstLine.startsWith('compliance notice:')) {
