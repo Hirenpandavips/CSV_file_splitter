@@ -23,7 +23,7 @@ function findZipFiles(dir) {
 
     if (stat.isDirectory()) {
       zipFiles.push(...findZipFiles(fullPath));
-    } else if (path.extname(item).toLowerCase() === '.zip') {
+    } else if (stat.isFile() && path.extname(item).toLowerCase() === '.zip') {
       zipFiles.push(fullPath);
     }
   }
@@ -34,13 +34,28 @@ function findZipFiles(dir) {
 // Extract zip file to same directory and return newly extracted CSV files
 function extractZip(zipPath) {
   console.log(`📦 Extracting: ${zipPath}`);
-  const zip = new AdmZip(zipPath);
-  const extractPath = path.dirname(zipPath);
-
-  // Get existing CSV files before extraction
-  const existingCsvFiles = new Set(findCsvFiles(extractPath).map(f => path.basename(f)));
-
+  
   try {
+    // Validate that the file exists and is a zip file
+    if (!fs.existsSync(zipPath)) {
+      throw new Error(`Zip file not found: ${zipPath}`);
+    }
+    
+    const stat = fs.statSync(zipPath);
+    if (!stat.isFile()) {
+      throw new Error(`Path is not a file: ${zipPath}`);
+    }
+    
+    if (path.extname(zipPath).toLowerCase() !== '.zip') {
+      throw new Error(`File is not a zip file: ${zipPath}`);
+    }
+    
+    const extractPath = path.dirname(zipPath);
+    
+    // Get existing CSV files before extraction
+    const existingCsvFiles = new Set(findCsvFiles(extractPath).map(f => path.basename(f)));
+    
+    const zip = new AdmZip(zipPath);
     zip.extractAllTo(extractPath, true);
     console.log(`✅ Extracted to: ${extractPath}\n`);
     
