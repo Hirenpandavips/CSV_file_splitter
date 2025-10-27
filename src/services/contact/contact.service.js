@@ -223,7 +223,22 @@ exports.splitCompanyContacts = async () => {
 			let extraTels = telNumbers.length > 1 ? telNumbers.slice(1).join(';') : '';
 
 			for (let i = 0; i < emails.length; i++) {
+				// Filter out emails containing specific keywords
 				const singleEmail = emails[i];
+				
+				const skipKeywords = [
+					'service', 'customer', 'care', 'support', 'helpdesk',
+					'help', 'admin', 'privacy', 'careers', 'hr',
+					'shipping', 'order', 'service', 'admissions', 'team', 'auto-reply', 'do-not-reply', 'no-reply',
+					'.gov', '.edu', 'dispatch', 'legal'
+				];
+
+				const emailLower = singleEmail.toLowerCase();
+				const shouldSkip = skipKeywords.some(keyword => emailLower.includes(keyword));
+
+				if (shouldSkip) {
+					continue; // Skip this email
+				}
 				const isLastEmail = i === emails.length - 1;
 				// Clone the row and set the Emails column to the single email
 				const newRow = [...record];
@@ -538,6 +553,22 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 
 			for (let i = 0; i < emails.length; i++) {
 				const singleEmail = emails[i];
+
+				// Filter out emails containing specific keywords
+				const skipKeywords = [
+					'service', 'customer', 'care', 'support', 'helpdesk',
+					'help', 'admin', 'privacy', 'careers', 'hr',
+					'shipping', 'order', 'service', 'admissions', 'team', 'auto-reply', 'do-not-reply', 'no-reply',
+					'.gov', '.edu', 'dispatch', 'legal'
+				];
+
+				const emailLower = singleEmail.toLowerCase();
+				const shouldSkip = skipKeywords.some(keyword => emailLower.includes(keyword));
+
+				if (shouldSkip) {
+					continue; // Skip this email
+				}
+
 				const isLastEmail = i === emails.length - 1;
 				const newRow = [...record];
 				newRow[emailIndex] = singleEmail;
