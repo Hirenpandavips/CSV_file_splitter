@@ -16,6 +16,8 @@ function parseArgs(argv) {
       args.range = arg.replace('--range=', '');
     } else if (arg.startsWith('--batch=')) {
       args.batch = arg.replace('--batch=', '');
+    } else if (arg.startsWith('--zipname=')) {
+      args.zipname = arg.replace('--zipname=', '');
     } else if (!arg.startsWith('--')) {
       args._.push(arg);
     }
@@ -47,7 +49,7 @@ async function main() {
       process.exit(1);
     }
     try {
-      const result = await splitCompanyContactsInRange(start, end, batchCount, inputPath);
+      const result = await splitCompanyContactsInRange(start, end, batchCount, inputPath, args.zipname);
       if (result && result.data) {
         console.log('\n=== CSV Range Split Summary ===');
         for (const [k, v] of Object.entries(result.data)) {
@@ -66,6 +68,9 @@ async function main() {
     process.env.CSV_INPUT_PATH = inputPath;
     if (args.batch) {
       process.env.CSV_SPLIT_SIZE = args.batch;
+    }
+    if (args.zipname) {
+      process.env.CSV_ZIP_NAME = args.zipname;
     }
     try {
       const result = await splitCompanyContacts();

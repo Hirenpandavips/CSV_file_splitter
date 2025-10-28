@@ -39,7 +39,9 @@ exports.splitCompanyContacts = async () => {
 	}
 
 	// Prepare output directory
-	const baseName = path.basename(inputCsvPath, path.extname(inputCsvPath))
+	const baseName = process.env.CSV_ZIP_NAME 
+		? process.env.CSV_ZIP_NAME 
+		: path.basename(inputCsvPath, path.extname(inputCsvPath));
 	const timestamp = new Date()
 		.toISOString()
 		.replace(/[-:T]/g, '')
@@ -53,6 +55,7 @@ exports.splitCompanyContacts = async () => {
 		if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 	}
 	ensureDir(outputDir)
+	console.log(`\n  folder is created ${baseName}\n`);
 
 	// CSV stringifier (minimal) – always quote, escape embedded quotes by doubling
 	const escapeCsvField = (val) => {
@@ -365,7 +368,7 @@ exports.splitCompanyContacts = async () => {
 
 
 
-exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPathArg) => {
+exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPathArg, zipFileName) => {
 	let parse
 	try {
 		;({ parse } = require('csv-parse'))
@@ -395,7 +398,9 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 	}
 
 	// Prepare output directory
-	const baseName = path.basename(inputCsvPath, path.extname(inputCsvPath))
+	const baseName = zipFileName 
+		? zipFileName 
+		: path.basename(inputCsvPath, path.extname(inputCsvPath));
 	const timestamp = new Date()
 		.toISOString()
 		.replace(/[-:T]/g, '')
@@ -410,6 +415,7 @@ exports.splitCompanyContactsInRange = async (start, end, batchCount, inputCsvPat
 		if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 	}
 	ensureDir(outputDir)
+	console.log(`\n  folder is created ${baseName}_range_${timestamp}\n`);
 
 	// CSV stringifier (minimal) – always quote, escape embedded quotes by doubling
 	const escapeCsvField = (val) => {

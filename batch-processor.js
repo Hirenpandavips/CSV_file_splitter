@@ -111,11 +111,11 @@ function findCsvFiles(dir) {
 }
 
 // Process single CSV file
-function processCsvFile(csvPath) {
+function processCsvFile(csvPath, zipFileName) {
   console.log(`📊 Processing CSV: ${csvPath}`);
 
   try {
-    const command = `node csv-split.js "${csvPath}" --batch=${BATCH_SIZE}`;
+    const command = `node csv-split.js "${csvPath}" --batch=${BATCH_SIZE} --zipname="${zipFileName}"`;
     const output = execSync(command, {
       cwd: __dirname,
       encoding: 'utf8',
@@ -194,7 +194,9 @@ async function main() {
       const csvPath = csvFiles[j];
       console.log(`  [${j + 1}/${csvFiles.length}] ${path.basename(csvPath)}`);
 
-      const success = processCsvFile(csvPath);
+      // Extract zip file base name (without extension)
+      const zipBaseName = path.basename(zipPath, '.zip');
+      const success = processCsvFile(csvPath, zipBaseName);
       if (success) {
         successCount++;
       } else {
